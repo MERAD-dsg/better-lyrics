@@ -1967,3 +1967,13 @@ html[blyrics-no-fs-controls] .blyrics-fs-info-actions {
     transform: translateX(0);
   }
 }
+
+/* -- Clean fullscreen ------------------------------------------------------ */
+/* Opt-in (Display > Fullscreen > Clean fullscreen). While the player is fullscreened,
+   strip the chrome that is only useful with a cursor: the lyrics footer (source, Genius,
+   submit, Discord, Unison card), the floating control dock and the song-info buttons.
+   Scoped through :has() because the karaoke overlay mounts on <body>, outside #layout. */
+html[blyrics-fs-clean]:has(#layout[player-fullscreened]:not([blyrics-dfs]))
+  :is(.blyrics-footer, .blyrics-dock, .blyrics-fs-info-actions, .blyrics-karaoke-source) {
+  display: none !important;
+}

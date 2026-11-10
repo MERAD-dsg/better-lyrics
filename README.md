@@ -109,6 +109,7 @@ Settings are organized into tabs in the extension popup:
 | -------------------------------------------- | ------- |
 | Blurred album art background                 | Enabled |
 | Full screen mode                             | Enabled |
+| Clean fullscreen (hide footer/dock clutter)  | Enabled |
 | Auto-hide cursor in full screen mode         | Enabled |
 | Stylized animations (Background/Wobble/Glow) | Enabled |
 | Passive scroll for unsynced lyrics           | Enabled |

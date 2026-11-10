@@ -59,6 +59,7 @@ interface AppStateType {
   manualProviderKey: LyricSourceKey | null;
   availableProviderKeys: LyricSourceKey[];
   availableUnisonLyricsId: number | null;
+  isFullscreenCleanEnabled: boolean;
   isControlsDockEnabled: boolean;
   controlsDockPosition: string;
   isControlsDockAutoHideInFullscreenEnabled: boolean;
@@ -109,6 +110,7 @@ export const AppState: AppStateType = {
   manualProviderKey: null,
   availableProviderKeys: [],
   availableUnisonLyricsId: null,
+  isFullscreenCleanEnabled: true,
   isControlsDockEnabled: true,
   controlsDockPosition: DOCK_DEFAULT_POSITION,
   isControlsDockAutoHideInFullscreenEnabled: true,

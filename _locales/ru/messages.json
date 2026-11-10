@@ -105,6 +105,14 @@
     "message": "Размытая обложка альбома как фон",
     "description": "Show album art background setting label"
   },
+  "options_display_cleanFullscreen": {
+    "message": "Чистый полноэкранный режим",
+    "description": "Toggle label for hiding the lyrics footer, control dock and song info buttons in fullscreen"
+  },
+  "options_display_cleanFullscreenTooltip": {
+    "message": "Скрывает в полноэкранном режиме футер под текстом (источник, Genius, отправка текста, Discord), плавающую панель управления, а также громкость и кнопку быстрых действий рядом с названием песни.",
+    "description": "Tooltip for the clean fullscreen toggle, listing what it hides"
+  },
   "options_display_fullscreenControls": {
     "message": "Показывать элементы управления в полноэкранном режиме",
     "description": "Toggle label for the playback controls strip (progress bar, transport, like and dislike) shown under the album art in the fullscreen lyrics view"

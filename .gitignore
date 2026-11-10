@@ -30,3 +30,6 @@ sourcemaps_for_upload/*
 
 # extension.js local session state
 .extension-js
+
+# local install artifacts (built zips + unpacked folders)
+release/

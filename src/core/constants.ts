@@ -43,6 +43,9 @@ export const LYRICS_LOADER_ID = "blyrics-loader" as const;
 export const LYRICS_DISABLED_ATTR = "blyrics-dfs" as const;
 export const FULLSCREEN_CONTROLS_DISABLED_ATTR = "blyrics-no-fs-controls" as const;
 export const FULLSCREEN_CONTROLS_PINNED_ATTR = "blyrics-fs-controls-pinned" as const;
+// Set on <html> when "Clean fullscreen" is on: hides the lyrics footer, the control dock
+// and the song-info action buttons while the player is fullscreened.
+export const FULLSCREEN_CLEAN_ATTR = "blyrics-fs-clean" as const;
 export const KARAOKE_ACTIVE_ATTR = "blyrics-karaoke" as const;
 export const THEMESONG_ACTIVE_ATTR = "blyrics-themesong" as const;
 export const THEMESONG_CONTAINER_ID = "ThemeSong-MainContainer" as const;

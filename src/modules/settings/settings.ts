@@ -3,6 +3,7 @@ import {
   DOCK_CLASS,
   DOCK_CONTROL_ORDER_DEFAULT,
   DOCK_DEFAULT_POSITION,
+  FULLSCREEN_CLEAN_ATTR,
   FULLSCREEN_CONTROLS_DISABLED_ATTR,
   FULLSCREEN_CONTROLS_PINNED_ATTR,
   LYRICS_DISABLED_ATTR,
@@ -16,7 +17,7 @@ import { migrateFullscreenControlsPref } from "@modules/settings/fullscreenContr
 import { clearCache as clearTranslationCache } from "@modules/lyrics/translation";
 import { mountDock, mountVotingSegment, reloadAlbumArt, unmountDock, updateDockPosition } from "@modules/ui/dom";
 import { applyGlobalOffsets } from "@modules/ui/lyricsDock/offset";
-import { mainView } from "@modules/ui/mainLyricsView";
+import { lyricsElementAdded, mainView } from "@modules/ui/mainLyricsView";
 import { isPlayerFullscreened, onFullscreenChange } from "@modules/ui/observer";
 import { publishSecondaryViews } from "@modules/ui/secondaryViews";
 import { applyCustomStyles, getAndApplyCustomStyles } from "@modules/ui/styleInjector";
@@ -60,6 +61,7 @@ export function handleSettings(): void {
   );
 
   applyFullscreenControlsPref();
+  applyFullscreenCleanPref();
 
   onStylizedAnimationsEnabled(
     () => {
@@ -117,6 +119,25 @@ function applyFullscreenControlsPref(): void {
     const root = document.documentElement;
     root.toggleAttribute(FULLSCREEN_CONTROLS_DISABLED_ATTR, pref === "off");
     root.toggleAttribute(FULLSCREEN_CONTROLS_PINNED_ATTR, pref === "on");
+  });
+}
+
+/**
+ * Applies the "Clean fullscreen" preference. The attribute alone does the hiding (see the
+ * clean-fullscreen block in components.css); the lyrics are re-measured afterwards because
+ * removing the footer changes how much room the lines have to scroll through.
+ */
+function applyFullscreenCleanPref(): void {
+  getStorage({ isFullscreenCleanEnabled: true }, items => {
+    const enabled = items.isFullscreenCleanEnabled !== false;
+    AppState.isFullscreenCleanEnabled = enabled;
+    const root = document.documentElement;
+    if (root.hasAttribute(FULLSCREEN_CLEAN_ATTR) === enabled) return;
+    root.toggleAttribute(FULLSCREEN_CLEAN_ATTR, enabled);
+    if (isPlayerFullscreened()) {
+      mainView.relayout();
+      lyricsElementAdded();
+    }
   });
 }
 

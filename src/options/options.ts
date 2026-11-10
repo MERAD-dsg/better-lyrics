@@ -90,6 +90,7 @@ interface Options extends VideoQualitySettings {
   isAlbumArtEnabled: boolean;
   isShadersPromoEnabled: boolean;
   isFullScreenDisabled: boolean;
+  isFullscreenCleanEnabled: boolean;
   fullscreenControlsPref: FullscreenControlsPref;
   isStylizedAnimationsEnabled: boolean;
   letterWavePref: LetterWavePref;
@@ -162,6 +163,7 @@ const getOptionsFromForm = (): Options => {
     isAlbumArtEnabled: (document.getElementById("albumArt") as HTMLInputElement).checked,
     isShadersPromoEnabled: (document.getElementById("isShadersPromoEnabled") as HTMLInputElement).checked,
     isFullScreenDisabled: (document.getElementById("isFullScreenDisabled") as HTMLInputElement).checked,
+    isFullscreenCleanEnabled: (document.getElementById("isFullscreenCleanEnabled") as HTMLInputElement).checked,
     fullscreenControlsPref: getTriSwitchState("fullscreenControlsSwitch"),
     isStylizedAnimationsEnabled: (document.getElementById("isStylizedAnimationsEnabled") as HTMLInputElement).checked,
     letterWavePref: getTriSwitchState("letterWaveSwitch"),
@@ -349,6 +351,7 @@ const restoreOptions = (): void => {
     isShadersPromoEnabled: true,
     isCursorAutoHideEnabled: true,
     isFullScreenDisabled: false,
+    isFullscreenCleanEnabled: true,
     fullscreenControlsPref: "auto",
     isStylizedAnimationsEnabled: true,
     letterWavePref: "auto",
@@ -448,6 +451,7 @@ const setOptionsInForm = (items: Options): void => {
   (document.getElementById("autoSwitch") as HTMLInputElement).checked = items.isAutoSwitchEnabled;
   (document.getElementById("cursorAutoHide") as HTMLInputElement).checked = items.isCursorAutoHideEnabled;
   (document.getElementById("isFullScreenDisabled") as HTMLInputElement).checked = items.isFullScreenDisabled;
+  (document.getElementById("isFullscreenCleanEnabled") as HTMLInputElement).checked = items.isFullscreenCleanEnabled;
   setTriSwitchState("fullscreenControlsSwitch", items.fullscreenControlsPref);
   (document.getElementById("isStylizedAnimationsEnabled") as HTMLInputElement).checked =
     items.isStylizedAnimationsEnabled;

@@ -108,6 +108,14 @@
     "message": "Show blurred album art background",
     "description": "Show album art background setting label"
   },
+  "options_display_cleanFullscreen": {
+    "message": "Clean fullscreen",
+    "description": "Toggle label for hiding the lyrics footer, control dock and song info buttons in fullscreen"
+  },
+  "options_display_cleanFullscreenTooltip": {
+    "message": "Hides the source/action footer under the lyrics, the floating controls dock and the volume and quick actions buttons next to the song title while in fullscreen.",
+    "description": "Tooltip for the clean fullscreen toggle, listing what it hides"
+  },
   "options_display_fullscreenControls": {
     "message": "Show player controls in fullscreen",
     "description": "Toggle label for the playback controls strip (progress bar, transport, like and dislike) shown under the album art in the fullscreen lyrics view"
