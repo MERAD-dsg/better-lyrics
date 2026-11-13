@@ -206,6 +206,42 @@ assert.equal(refreshes, 1, "a failed/filtered initial refresh must not retry for
 (nextApi.loadVideoByPlayerVars as typeof original)(vars);
 video.dispatchEvent(new dom.window.Event("loadedmetadata"));
 assert.equal(refreshes, 2, "replaying also resets the one-time format refresh guard");
+{
+  // Regression: the reload restarts the video, so it must never fire again for the video it
+  // just reloaded. The real player routes the reload back through loadVideoByPlayerVars, which
+  // is patched here - used as its own reset, the guard cleared on every reload and the video
+  // restarted several times a second. The reload also owes the playback position back.
+  const originalVideoData = nextApi.getVideoData;
+  nextApi.getVideoData = () => ({ video_id: "loop-video" });
+  let reloads = 0;
+  let playhead = 30;
+  const seeks: number[] = [];
+  nextApi.getPlayerState = () => 1;
+  nextApi.getCurrentTime = () => playhead;
+  nextApi.seekTo = (seconds: number) => {
+    seeks.push(seconds);
+    playhead = seconds;
+  };
+  nextApi.updateVideoData = (vars, refresh) => {
+    reloads++;
+    assert.deepEqual(vars, { prefer_gapless: false }, "the reload asks only for non-gapless formats");
+    assert.equal(refresh, true, "the reload refilters the formats");
+    playhead = 0;
+    (nextApi.loadVideoByPlayerVars as typeof original)(vars);
+    video.dispatchEvent(new dom.window.Event("loadedmetadata"));
+  };
+  (nextApi.loadVideoByPlayerVars as typeof original)(vars);
+  qualities = ["hd1080", "auto"];
+  video.dispatchEvent(new dom.window.Event("loadedmetadata"));
+  assert.equal(reloads, 1, "a reload must not clear its own one-per-playback guard");
+  assert.deepEqual(seeks, [30], "playback resumes where the reload interrupted it");
+  for (let index = 0; index < 5; index++) video.dispatchEvent(new dom.window.Event("loadedmetadata"));
+  assert.equal(reloads, 1, "later metadata events leave the video alone");
+  delete nextApi.getCurrentTime;
+  delete nextApi.seekTo;
+  delete nextApi.getPlayerState;
+  nextApi.getVideoData = originalVideoData;
+}
 nextApi.getPlayerResponse = undefined;
 const boost = (detail: string) => doc.dispatchEvent(new dom.window.CustomEvent(VIDEO_QUALITY_BOOST_EVENT, { detail }));
 qualities = ["hd2160", "hd1080", "large", "auto"];

@@ -17,6 +17,9 @@ export interface VideoQualityPlayer {
   setPlaybackQualityRange?: (min: string, max: string) => void;
   getPlayerState?: () => number;
   getAdState?: () => number;
+  getCurrentTime?: () => number;
+  seekTo?: (seconds: number, allowSeekAhead: boolean) => void;
+  playVideo?: () => void;
   getPlayerResponse?: () => { streamingData?: { adaptiveFormats?: { height?: number }[] } };
   updateVideoData?: (vars: PlayerVars, refresh: boolean) => void;
 }
@@ -28,6 +31,24 @@ const LOAD_METHODS = [
   "queueNextVideo",
   "enqueueVideoByPlayerVars",
 ] as const;
+
+const MAX_FORMAT_REFRESHES_PER_VIDEO = 2;
+const REMEMBERED_VIDEOS = 8;
+const RESUME_TIMEOUT_MS = 10_000;
+const RESUME_TOLERANCE_S = 0.5;
+const RESUME_MIN_S = 0.5;
+const RESUME_MAX_ATTEMPTS = 4;
+const RESUME_RETRY_MS = 250;
+const PLAYING_STATE = 1;
+const PAUSED_STATES = new Set([2, 5]);
+
+interface PendingResume {
+  readonly time: number;
+  readonly wasPlaying: boolean;
+  readonly expiresAt: number;
+  attempts: number;
+  lastAttemptAt: number;
+}
 
 export function patchVideoQualityPlayer(
   api: VideoQualityPlayer,
@@ -84,6 +105,71 @@ export function startVideoQualityPlayer(doc: Document = document, win: Window = 
     initialRefreshKey = "";
   };
 
+  // The reload that refilters the formats is only ever worth doing once or twice for a video,
+  // because it restarts playback. Capped per video id and never cleared by the reload itself:
+  // the reload runs back through the load hooks patched above, which reset the per-playback
+  // guard (resetPlayback) - so it used to clear its own guard and fire again on the very next
+  // metadata event, restarting the video several times a second.
+  const formatRefreshes = new Map<string, number>();
+  let selfRefreshInFlight = false;
+  let pendingResume: PendingResume | null = null;
+
+  const noteFormatRefresh = (videoId: string): void => {
+    formatRefreshes.set(videoId, (formatRefreshes.get(videoId) ?? 0) + 1);
+    while (formatRefreshes.size > REMEMBERED_VIDEOS) {
+      const oldest = formatRefreshes.keys().next().value;
+      if (oldest === undefined) break;
+      formatRefreshes.delete(oldest);
+    }
+  };
+
+  // The reload is issued from inside updateVideoData, so the load it triggers is on the same
+  // call stack. Anything the page asks for later - a replay, the next track - is a fresh
+  // playback and resets the guard as before.
+  const onPlaybackLoad = (): void => {
+    if (selfRefreshInFlight) return;
+    resetPlayback();
+  };
+
+  // A reload drops playback back to 0, so the position is remembered and given back once the
+  // video has loaded again.
+  const queueResume = (): void => {
+    const time = api?.getCurrentTime?.();
+    pendingResume =
+      typeof time === "number" && Number.isFinite(time) && time > RESUME_MIN_S
+        ? {
+            time,
+            wasPlaying: api?.getPlayerState?.() === PLAYING_STATE,
+            expiresAt: Date.now() + RESUME_TIMEOUT_MS,
+            attempts: 0,
+            lastAttemptAt: 0,
+          }
+        : null;
+  };
+
+  const resumePlayback = (): void => {
+    const pending = pendingResume;
+    if (!pending || !api) return;
+    if (Date.now() > pending.expiresAt) {
+      pendingResume = null;
+      return;
+    }
+    const current = typeof api.getCurrentTime === "function" ? api.getCurrentTime() : null;
+    if (typeof current === "number" && current >= pending.time - RESUME_TOLERANCE_S) {
+      pendingResume = null;
+      if (pending.wasPlaying && PAUSED_STATES.has(api.getPlayerState?.() ?? -1)) api.playVideo?.();
+      return;
+    }
+    if (pending.attempts >= RESUME_MAX_ATTEMPTS || Date.now() - pending.lastAttemptAt < RESUME_RETRY_MS) return;
+    pending.attempts += 1;
+    pending.lastAttemptAt = Date.now();
+    try {
+      api.seekTo?.(pending.time, true);
+    } catch (error) {
+      reportFailure("Failed to resume playback after the format refresh", error);
+    }
+  };
+
   const applyQuality = (): void => {
     if (!api || !settings) return;
     try {
@@ -98,12 +184,20 @@ export function startVideoQualityPlayer(doc: Document = document, win: Window = 
       if (
         settings.isHighResolutionVideoEnabled &&
         initialRefreshKey !== data.video_id &&
+        (formatRefreshes.get(data.video_id) ?? 0) < MAX_FORMAT_REFRESHES_PER_VIDEO &&
         !available.some(quality => ["hd1440", "hd2160", "hd2880", "hd4320", "highres"].includes(quality)) &&
         api.getPlayerResponse?.().streamingData?.adaptiveFormats?.some(format => (format.height ?? 0) > 1080) &&
         typeof api.updateVideoData === "function"
       ) {
         initialRefreshKey = data.video_id;
-        api.updateVideoData({ prefer_gapless: false }, true);
+        noteFormatRefresh(data.video_id);
+        queueResume();
+        selfRefreshInFlight = true;
+        try {
+          api.updateVideoData({ prefer_gapless: false }, true);
+        } finally {
+          selfRefreshInFlight = false;
+        }
         return;
       }
       const quality = selectVideoQuality(settings, available, isBoosted);
@@ -130,7 +224,7 @@ export function startVideoQualityPlayer(doc: Document = document, win: Window = 
           if (next !== api) {
             unpatch?.();
             api = next;
-            unpatch = patchVideoQualityPlayer(api, () => settings, resetPlayback);
+            unpatch = patchVideoQualityPlayer(api, () => settings, onPlaybackLoad);
             resetPlayback();
           }
           observer.disconnect();
@@ -171,28 +265,38 @@ export function startVideoQualityPlayer(doc: Document = document, win: Window = 
       reportFailure("Failed to read video quality boost", error);
     }
   };
-  const onLoadedMetadata = (event: Event): void => {
+  const onMediaEvent = (event: Event): void => {
     const target = event.target as Element | null;
     if (target?.tagName !== "VIDEO" || !target.closest("ytmusic-player")) return;
-    lastQualityKey = "";
-    applyQuality();
+    if (event.type === "loadedmetadata") {
+      resumePlayback();
+      lastQualityKey = "";
+      applyQuality();
+      return;
+    }
+    resumePlayback();
   };
   doc.addEventListener(VIDEO_QUALITY_SETTINGS_EVENT, receive);
   doc.addEventListener(VIDEO_QUALITY_BOOST_EVENT, receiveBoost);
   doc.addEventListener("yt-navigate-finish", connect);
-  doc.addEventListener("loadedmetadata", onLoadedMetadata, true);
+  for (const type of ["loadedmetadata", "canplay", "playing", "timeupdate"]) {
+    doc.addEventListener(type, onMediaEvent, true);
+  }
   const observer = new MutationObserver(connect);
   observer.observe(doc, { childList: true, subtree: true });
   const interval = win.setInterval(connect, 1000);
   doc.dispatchEvent(new Event(VIDEO_QUALITY_REQUEST_EVENT));
   return () => {
     disposed = true;
+    pendingResume = null;
     observer.disconnect();
     win.clearInterval(interval);
     unpatch?.();
     doc.removeEventListener(VIDEO_QUALITY_SETTINGS_EVENT, receive);
     doc.removeEventListener(VIDEO_QUALITY_BOOST_EVENT, receiveBoost);
     doc.removeEventListener("yt-navigate-finish", connect);
-    doc.removeEventListener("loadedmetadata", onLoadedMetadata, true);
+    for (const type of ["loadedmetadata", "canplay", "playing", "timeupdate"]) {
+      doc.removeEventListener(type, onMediaEvent, true);
+    }
   };
 }
