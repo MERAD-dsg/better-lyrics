@@ -67,6 +67,19 @@ export let logStore: LogSink = createLogSink(LOG_PREFIX_STORE, true);
 export let logAuth: LogSink = createLogSink(LOG_PREFIX_AUTH, true);
 export let logError: LogSink = createLogSink(GENERAL_ERROR_LOG, true);
 
+// The page-world scripts (public/script.js, src/videoQualityPage.ts) run without chrome.* and
+// cannot read this setting, so it is mirrored onto <html>: the DOM is shared across worlds even
+// though JavaScript contexts are not. The player bridge logs every call that can restart the
+// video while the flag is set, which is what pins down who is restarting playback.
+export const VIDEO_DEBUG_ATTR = "blyrics-video-debug";
+
+/** Page-world friendly debug sink: silent unless "Show logs" is on. */
+export const videoDebug: LogSink = (...args: unknown[]) => {
+  if (typeof document === "undefined") return;
+  if (!document.documentElement?.hasAttribute(VIDEO_DEBUG_ATTR)) return;
+  console.log("[BetterLyrics]", ...args);
+};
+
 export function configureLogging(enabled: boolean): void {
   logCore = createLogSink(LOG_PREFIX, enabled);
   logContent = createLogSink(LOG_PREFIX_CONTENT, enabled);
@@ -75,4 +88,7 @@ export function configureLogging(enabled: boolean): void {
   logStore = createLogSink(LOG_PREFIX_STORE, enabled);
   logAuth = createLogSink(LOG_PREFIX_AUTH, enabled);
   logError = createLogSink(GENERAL_ERROR_LOG, enabled);
+  try {
+    if (typeof document !== "undefined") document.documentElement?.toggleAttribute(VIDEO_DEBUG_ATTR, enabled);
+  } catch {}
 }

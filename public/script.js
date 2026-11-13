@@ -94,7 +94,23 @@ export default function initializePlayerBridge() {
     }
   };
 
-  const handleVideoStateChange = () => {
+  const DEBUG_ATTR = "blyrics-video-debug";
+  const debugEnabled = () => document.documentElement?.hasAttribute(DEBUG_ATTR) === true;
+  const summarise = value => {
+    if (typeof value === "string") return value.length > 80 ? `${value.slice(0, 80)}...` : value;
+    if (typeof value === "number" || typeof value === "boolean" || value == null) return value;
+    if (typeof value === "object") return Object.keys(value).slice(0, 12);
+    return String(value);
+  };
+
+  const handleVideoStateChange = event => {
+    if (event?.type && debugEnabled()) {
+      console.log(`[BetterLyrics] video:${event.type}`, {
+        currentTime: observedVideoElement?.currentTime ?? null,
+        readyState: observedVideoElement?.readyState ?? null,
+        at: Date.now(),
+      });
+    }
     updateVideoAspectRatioVar(observedVideoElement);
     publishPlayerSnapshot();
   };
@@ -128,6 +144,44 @@ export default function initializePlayerBridge() {
 
   const handlePlayerStateChange = () => publishPlayerSnapshot();
 
+  // Wraps the player methods that can restart or re-cue the video. Only used while "Show logs"
+  // is on: the stack of each call says whether the page or something else asked for it.
+  const RESTART_METHODS = [
+    "updateVideoData",
+    "loadVideoByPlayerVars",
+    "cueVideoByPlayerVars",
+    "preloadVideoByPlayerVars",
+    "loadVideoById",
+    "cueVideoById",
+    "nextVideo",
+    "previousVideo",
+    "playVideo",
+    "seekTo",
+  ];
+
+  const instrumentPlayer = player => {
+    if (!player || player.__blyricsInstrumented) return;
+    player.__blyricsInstrumented = true;
+    for (const name of RESTART_METHODS) {
+      const original = player[name];
+      if (typeof original !== "function") continue;
+      try {
+        player[name] = function (...args) {
+          if (debugEnabled()) {
+            console.log(
+              "[BetterLyrics] player." + name,
+              { args: args.map(summarise), currentTime: player.getCurrentTime?.() ?? null },
+              new Error("call trace").stack
+            );
+          }
+          return original.apply(this, args);
+        };
+      } catch (error) {
+        console.log(error);
+      }
+    }
+  };
+
   const detachPlayer = () => {
     if (observedPlayer && typeof observedPlayer.removeEventListener === "function") {
       observedPlayer.removeEventListener("onStateChange", handlePlayerStateChange);
@@ -147,6 +201,7 @@ export default function initializePlayerBridge() {
 
     detachPlayer();
     observedPlayer = player;
+    instrumentPlayer(player);
 
     if (typeof player.addEventListener === "function") {
       player.addEventListener("onStateChange", handlePlayerStateChange);

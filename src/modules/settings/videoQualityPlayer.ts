@@ -1,4 +1,4 @@
-import { warnCore } from "@core/logger";
+import { videoDebug, warnCore } from "@core/logger";
 import {
   normalizeVideoQualitySettings,
   selectVideoQuality,
@@ -192,6 +192,10 @@ export function startVideoQualityPlayer(doc: Document = document, win: Window = 
         initialRefreshKey = data.video_id;
         noteFormatRefresh(data.video_id);
         queueResume();
+        videoDebug("reloading the player to unlock high resolution formats", {
+          videoId: data.video_id,
+          resumeAt: pendingResume?.time ?? null,
+        });
         selfRefreshInFlight = true;
         try {
           api.updateVideoData({ prefer_gapless: false }, true);
@@ -245,6 +249,11 @@ export function startVideoQualityPlayer(doc: Document = document, win: Window = 
       const raw: unknown = JSON.parse((event as CustomEvent<string>).detail);
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) return;
       const next = normalizeVideoQualitySettings(raw);
+      if (settings === null) {
+        // This module runs in the page world and the settings bridge in the isolated one, so a
+        // missing line here means the event never crossed and nothing below ever runs.
+        videoDebug("video quality settings received in the page world", next);
+      }
       if (next.isHighResolutionVideoEnabled !== settings?.isHighResolutionVideoEnabled) initialRefreshKey = "";
       settings = next;
       lastQualityKey = "";
