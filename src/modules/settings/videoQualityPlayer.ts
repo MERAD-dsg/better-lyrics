@@ -5,6 +5,7 @@ import {
   VIDEO_QUALITY_BOOST_EVENT,
   VIDEO_QUALITY_REQUEST_EVENT,
   VIDEO_QUALITY_SETTINGS_EVENT,
+  type VideoQuality,
   type VideoQualitySettings,
 } from "@modules/settings/videoQuality";
 
@@ -93,6 +94,8 @@ export function startVideoQualityPlayer(doc: Document = document, win: Window = 
   let pending = false;
   let lastQualityKey = "";
   let initialRefreshKey = "";
+  // The last explicit level this module pinned, so "auto" is only ever sent to undo it.
+  let pinnedQuality: VideoQuality | null = null;
 
   const reportedFailures = new Set<string>();
   const reportFailure = (context: string, error: unknown): void => {
@@ -103,6 +106,7 @@ export function startVideoQualityPlayer(doc: Document = document, win: Window = 
   const resetPlayback = (): void => {
     lastQualityKey = "";
     initialRefreshKey = "";
+    pinnedQuality = null;
   };
 
   // The reload that refilters the formats is only ever worth doing once or twice for a video,
@@ -207,7 +211,16 @@ export function startVideoQualityPlayer(doc: Document = document, win: Window = 
       const quality = selectVideoQuality(settings, available, isBoosted);
       const key = `${data.video_id}:${available.join(",")}:${quality}`;
       if (key === lastQualityKey || typeof api.setPlaybackQualityRange !== "function") return;
+      // "auto" is what the player already does, and pinning it overwrites a level chosen in
+      // YouTube Music's own menu or held by another extension. Some of those tools reload the
+      // video to put their level back, which restarts playback every few seconds, so "auto" is
+      // only sent when this module has an explicit pin of its own to undo.
+      if (quality === "auto" && pinnedQuality === null) {
+        lastQualityKey = key;
+        return;
+      }
       api.setPlaybackQualityRange(quality, quality);
+      pinnedQuality = quality === "auto" ? null : quality;
       lastQualityKey = key;
     } catch (error) {
       reportFailure("Failed to apply playback quality", error);

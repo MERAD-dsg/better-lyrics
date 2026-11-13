@@ -243,6 +243,25 @@ assert.equal(refreshes, 2, "replaying also resets the one-time format refresh gu
   nextApi.getVideoData = originalVideoData;
 }
 nextApi.getPlayerResponse = undefined;
+// Regression: "auto" must not be re-pinned over a level someone else set. Another extension that
+// locks the quality reloads the video to restore its level, and the reload fires loadedmetadata,
+// which re-applied "auto" here - so the two extensions restarted the video every few seconds.
+{
+  const beforeAutoFight = qualityCalls.length;
+  (nextApi.loadVideoByPlayerVars as typeof original)(vars);
+  qualities = ["hd2160", "hd1080", "auto"];
+  settings("auto");
+  await settle();
+  for (let index = 0; index < 5; index++) video.dispatchEvent(new dom.window.Event("loadedmetadata"));
+  assert.equal(qualityCalls.length, beforeAutoFight, "auto does not overwrite a level this module never pinned");
+  // An explicit choice is still pinned, and dropping it later is what puts the player back on auto.
+  settings("hd2160");
+  await settle();
+  assert.equal(qualityCalls.at(-1), "hd2160", "an explicit choice is still applied");
+  settings("auto");
+  await settle();
+  assert.equal(qualityCalls.at(-1), "auto", "going back to auto undoes this module's own pin");
+}
 const boost = (detail: string) => doc.dispatchEvent(new dom.window.CustomEvent(VIDEO_QUALITY_BOOST_EVENT, { detail }));
 qualities = ["hd2160", "hd1080", "large", "auto"];
 settings("auto");
